@@ -73,8 +73,8 @@ ${formData.message}
 Gönderim Tarihi: ${new Date().toLocaleString('tr-TR')}
       `;
 
-      // Send to Formspree (replace with your actual Formspree endpoint)
-      const response = await fetch(import.meta.env.VITE_FORMSPREE_ENDPOINT, {
+      // Send to Formspree
+      const response = await fetch('https://formspree.io/f/mgvzzzje', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

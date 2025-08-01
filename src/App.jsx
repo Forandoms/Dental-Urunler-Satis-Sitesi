@@ -466,7 +466,7 @@ const Contact = () => {
     setSubmitStatus(null);
 
     try {
-      const response = await fetch(import.meta.env.VITE_FORMSPREE_ENDPOINT, {
+      const response = await fetch('https://formspree.io/f/mgvzzzje', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -676,7 +676,7 @@ const Cart = ({ isOpen, onClose }) => {
     };
 
     try {
-      const response = await fetch(import.meta.env.VITE_FORMSPREE_ENDPOINT, {
+      const response = await fetch('https://formspree.io/f/mgvzzzje', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
