@@ -116,7 +116,7 @@ Sipariş Tarihi: ${orderData.orderDate}
       `;
 
       // Send to Formspree (replace with your actual Formspree endpoint)
-      const response = await fetch('https://formspree.io/f/YOUR_FORM_ID', {
+      const response = await fetch(import.meta.env.VITE_FORMSPREE_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

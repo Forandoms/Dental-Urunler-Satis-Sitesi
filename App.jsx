@@ -61,6 +61,24 @@ const products = [
 // Get top selling products
 const topSellingProducts = products.sort((a, b) => b.sales - a.sales).slice(0, 5);
 
+// Rate Limiting Utility (simulated)
+const lastSubmissionTimes = {};
+
+const checkRateLimit = (formId, delayMinutes) => {
+  const lastTime = lastSubmissionTimes[formId] || 0;
+  const currentTime = Date.now();
+  const delayMs = delayMinutes * 60 * 1000;
+
+  if (currentTime - lastTime < delayMs) {
+    return { canSubmit: false, remainingTime: Math.ceil((delayMs - (currentTime - lastTime)) / 1000) };
+  }
+  return { canSubmit: true };
+};
+
+const setLastSubmissionTime = (formId) => {
+  lastSubmissionTimes[formId] = Date.now();
+};
+
 // Header Component
 const Header = ({ cartItems, onCartOpen }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -402,38 +420,22 @@ const Products = ({ onAddToCart }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredProducts.map((product) => (
           <div key={product.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-            <div className="h-48 bg-gray-200 flex items-center justify-center">
-              <span className="text-gray-500">Ürün Görseli</span>
-            </div>
+            <img src={product.image} alt={product.name} className="w-full h-48 object-cover" />
             <div className="p-4">
-              <div className="mb-2">
-                <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded">
-                  {product.brand}
-                </span>
-              </div>
+              <p className="text-sm text-gray-500">{product.brand}</p>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{product.name}</h3>
-              <p className="text-sm text-gray-600 mb-3">{product.description}</p>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-2xl font-bold text-blue-600">₺{product.price}</span>
-                <span className="text-sm text-gray-500">{product.sales} satış</span>
+              <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-xl font-bold text-blue-600">₺{product.price}</span>
+                <Button onClick={() => onAddToCart(product)}>
+                  <ShoppingCart className="mr-2 h-4 w-4" />
+                  Sepete Ekle
+                </Button>
               </div>
-              <Button 
-                onClick={() => onAddToCart(product)}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                Sepete Ekle
-              </Button>
             </div>
           </div>
         ))}
       </div>
-
-      {filteredProducts.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Arama kriterlerinize uygun ürün bulunamadı.</p>
-        </div>
-      )}
     </div>
   );
 };
@@ -444,105 +446,125 @@ const Contact = () => {
     name: '', email: '', phone: '', subject: '', message: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState(null); // 'success', 'error', null
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const { canSubmit, remainingTime } = checkRateLimit("contactForm", 2); // 2 dakika gecikme
+    if (!canSubmit) {
+      alert(`Lütfen ${remainingTime} saniye sonra tekrar deneyin.`);
+      return;
+    }
+
     setIsSubmitting(true);
-    
-    // Simulate form submission
-    setTimeout(() => {
-      alert('Mesajınız alındı! En kısa sürede sizinle iletişime geçeceğiz.');
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+    setSubmitStatus(null);
+
+    try {
+      const response = await fetch(import.meta.env.VITE_FORMSPREE_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        setSubmitStatus('success');
+        setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+      } else {
+        setSubmitStatus('error');
+      }
+    } catch (error) {
+      console.error('Form gönderim hatası:', error);
+      setSubmitStatus('error');
+    } finally {
       setIsSubmitting(false);
-    }, 1000);
+      setLastSubmissionTime("contactForm");
+    }
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">İletişim</h1>
-        <p className="text-lg text-gray-600">
-          Sorularınız için bizimle iletişime geçin. Size en kısa sürede dönüş yapacağız.
-        </p>
-      </div>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">İletişim</h1>
+      <p className="text-lg text-gray-600 mb-8 text-center">Sorularınız için bizimle iletişime geçin. Size en kısa sürede dönüş yapacağız.</p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div className="bg-white p-8 rounded-lg shadow-sm grid grid-cols-1 md:grid-cols-2 gap-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">İletişim Bilgileri</h2>
-          <div className="space-y-6">
-            <div className="flex items-start space-x-4">
-              <Phone className="h-6 w-6 text-blue-600 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Telefon</h3>
-                <p className="text-gray-600">+90 212 555 0123</p>
-              </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">İletişim Bilgileri</h2>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <Phone className="h-5 w-5 text-blue-600" />
+              <span className="text-gray-700">+90 212 555 0123</span>
             </div>
-            <div className="flex items-start space-x-4">
-              <Mail className="h-6 w-6 text-green-600 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">E-posta</h3>
-                <p className="text-gray-600">info@sahindental.com</p>
-              </div>
+            <div className="flex items-center space-x-3">
+              <Mail className="h-5 w-5 text-blue-600" />
+              <span className="text-gray-700">info@sahindental.com</span>
             </div>
-            <div className="flex items-start space-x-4">
-              <MapPin className="h-6 w-6 text-purple-600 mt-1" />
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Adres</h3>
-                <p className="text-gray-600">Dental Plaza, Kat: 3, No: 15<br />Şişli / İstanbul</p>
-              </div>
+            <div className="flex items-center space-x-3">
+              <MapPin className="h-5 w-5 text-blue-600" />
+              <span className="text-gray-700">Dental Plaza, Kat: 3, No: 15<br/>Şişli / İstanbul</span>
             </div>
           </div>
         </div>
 
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Mesaj Gönder</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Mesaj Gönder</h2>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <input
                 type="text"
+                name="name"
                 placeholder="Ad Soyad *"
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                onChange={handleChange}
                 required
-                className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <input
                 type="email"
+                name="email"
                 placeholder="E-posta *"
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                onChange={handleChange}
                 required
-                className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                type="tel"
-                placeholder="Telefon"
-                value={formData.phone}
-                onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <select
-                value={formData.subject}
-                onChange={(e) => setFormData({...formData, subject: e.target.value})}
-                className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Konu seçin</option>
-                <option value="Ürün Bilgisi">Ürün Bilgisi</option>
-                <option value="Sipariş">Sipariş</option>
-                <option value="Teknik Destek">Teknik Destek</option>
-                <option value="Diğer">Diğer</option>
-              </select>
-            </div>
-            <textarea
-              placeholder="Mesajınızı buraya yazın... *"
-              value={formData.message}
-              onChange={(e) => setFormData({...formData, message: e.target.value})}
-              required
-              rows="6"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            <input
+              type="tel"
+              name="phone"
+              placeholder="Telefon"
+              value={formData.phone}
+              onChange={handleChange}
+              className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <select
+              name="subject"
+              value={formData.subject}
+              onChange={handleChange}
+              className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Konu seçin</option>
+              <option value="Ürün Bilgisi">Ürün Bilgisi</option>
+              <option value="Sipariş">Sipariş</option>
+              <option value="Teknik Destek">Teknik Destek</option>
+              <option value="Diğer">Diğer</option>
+            </select>
+            <textarea
+              name="message"
+              placeholder="Mesajınızı buraya yazın... *"
+              rows="5"
+              value={formData.message}
+              onChange={handleChange}
+              required
+              className="p-3 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+            ></textarea>
             <Button
               type="submit"
               disabled={isSubmitting}
@@ -556,6 +578,8 @@ const Contact = () => {
                 </>
               )}
             </Button>
+            {submitStatus === 'success' && <p className="text-green-600 text-center mt-4">Mesajınız başarıyla gönderildi!</p>}
+            {submitStatus === 'error' && <p className="text-red-600 text-center mt-4">Mesaj gönderilirken bir hata oluştu. Lütfen tekrar deneyin.</p>}
           </form>
         </div>
       </div>
@@ -563,14 +587,66 @@ const Contact = () => {
   );
 };
 
+// Cart Context
+const CartContext = React.createContext();
+
+const CartProvider = ({ children }) => {
+  const [cartItems, setCartItems] = useState([]);
+
+  const addToCart = (product) => {
+    setCartItems((prevItems) => {
+      const existingItem = prevItems.find((item) => item.id === product.id);
+      if (existingItem) {
+        return prevItems.map((item) =>
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      } else {
+        return [...prevItems, { ...product, quantity: 1 }];
+      }
+    });
+  };
+
+  const updateQuantity = (productId, newQuantity) => {
+    setCartItems((prevItems) => {
+      if (newQuantity <= 0) {
+        return prevItems.filter((item) => item.id !== productId);
+      }
+      return prevItems.map((item) =>
+        item.id === productId ? { ...item, quantity: newQuantity } : item
+      );
+    });
+  };
+
+  const removeItem = (productId) => {
+    setCartItems((prevItems) => prevItems.filter((item) => item.id !== productId));
+  };
+
+  const clearCart = () => {
+    setCartItems([]);
+  };
+
+  return (
+    <CartContext.Provider value={{ cartItems, addToCart, updateQuantity, removeItem, clearCart }}>
+      {children}
+    </CartContext.Provider>
+  );
+};
+
 // Cart Component
-const Cart = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem, onClearCart }) => {
+const Cart = ({ isOpen, onClose }) => {
+  const { cartItems, updateQuantity, removeItem, clearCart } = React.useContext(CartContext);
   const [orderForm, setOrderForm] = useState({
-    name: '', email: '', phone: '', address: '', notes: ''
+    name: '', email: '', phone: '', address: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderSubmitStatus, setOrderSubmitStatus] = useState(null); // 'success', 'error', null
 
   const totalPrice = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+
+  const handleOrderFormChange = (e) => {
+    const { name, value } = e.target;
+    setOrderForm(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
@@ -579,207 +655,181 @@ const Cart = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem, onCl
       return;
     }
 
+    const { canSubmit, remainingTime } = checkRateLimit("orderForm", 2); // 2 dakika gecikme
+    if (!canSubmit) {
+      alert(`Lütfen ${remainingTime} saniye sonra tekrar deneyin.`);
+      return;
+    }
+
     setIsSubmitting(true);
-    
-    // Simulate order submission
-    setTimeout(() => {
-      alert('Siparişiniz alındı! En kısa sürede sizinle iletişime geçeceğiz.');
-      onClearCart();
-      setOrderForm({ name: '', email: '', phone: '', address: '', notes: '' });
+    setOrderSubmitStatus(null);
+
+    const orderDetails = {
+      ...orderForm,
+      cart: cartItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.price
+      })),
+      totalPrice: totalPrice
+    };
+
+    try {
+      const response = await fetch(import.meta.env.VITE_FORMSPREE_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderDetails),
+      });
+
+      if (response.ok) {
+        setOrderSubmitStatus('success');
+        clearCart();
+        setOrderForm({ name: '', email: '', phone: '', address: '' });
+        onClose();
+      } else {
+        setOrderSubmitStatus('error');
+      }
+    } catch (error) {
+      console.error('Sipariş gönderim hatası:', error);
+      setOrderSubmitStatus('error');
+    } finally {
       setIsSubmitting(false);
-      onClose();
-    }, 1000);
+      setLastSubmissionTime("orderForm");
+    }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
-      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
-      
-      <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl">
-        <div className="flex flex-col h-full">
-          <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-              <ShoppingCart className="mr-2 h-5 w-5" />
-              Sepetim ({cartItems.reduce((total, item) => total + item.quantity, 0)})
-            </h2>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
+    <div
+      className={`fixed inset-0 bg-black bg-opacity-50 z-50 transform ${isOpen ? 'translate-x-0' : 'translate-x-full'} transition-transform duration-300`}
+      onClick={onClose}
+    >
+      <div
+        className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-lg p-6 overflow-y-auto"
+        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside cart
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">Sepetim ({cartItems.length})</h2>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-6 w-6" />
+          </Button>
+        </div>
 
-          <div className="flex-1 overflow-y-auto p-4">
-            {cartItems.length === 0 ? (
-              <div className="text-center py-8">
-                <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Sepetiniz boş</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="flex items-center space-x-3 bg-gray-50 p-3 rounded-lg">
-                    <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
-                      <span className="text-xs text-gray-500">Ürün</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-medium text-gray-900 truncate">{item.name}</h4>
-                      <p className="text-xs text-gray-500">{item.brand}</p>
-                      <p className="text-sm font-semibold text-blue-600">₺{item.price}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-                      >
-                        -
-                      </Button>
-                      <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-                      >
-                        +
-                      </Button>
-                    </div>
+        {cartItems.length === 0 ? (
+          <p className="text-gray-600">Sepetiniz boş.</p>
+        ) : (
+          <div className="space-y-4">
+            {cartItems.map((item) => (
+              <div key={item.id} className="flex items-center justify-between border-b pb-4">
+                <div className="flex items-center space-x-4">
+                  <img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded-md" />
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{item.name}</h3>
+                    <p className="text-sm text-gray-600">₺{item.price}</p>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {cartItems.length > 0 && (
-            <div className="border-t p-4 space-y-4">
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-900">Toplam:</span>
-                  <span className="text-xl font-bold text-blue-600">₺{totalPrice}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button size="sm" onClick={() => updateQuantity(item.id, item.quantity - 1)}>-</Button>
+                  <span className="font-medium">{item.quantity}</span>
+                  <Button size="sm" onClick={() => updateQuantity(item.id, item.quantity + 1)}>+</Button>
+                  <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
+                    <X className="h-4 w-4 text-red-500" />
+                  </Button>
                 </div>
               </div>
+            ))}
 
-              <form onSubmit={handleSubmitOrder} className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="Ad Soyad *"
-                  value={orderForm.name}
-                  onChange={(e) => setOrderForm({...orderForm, name: e.target.value})}
-                  required
-                  className="w-full p-2 border border-gray-300 rounded text-sm"
-                />
-                <input
-                  type="email"
-                  placeholder="E-posta *"
-                  value={orderForm.email}
-                  onChange={(e) => setOrderForm({...orderForm, email: e.target.value})}
-                  required
-                  className="w-full p-2 border border-gray-300 rounded text-sm"
-                />
-                <input
-                  type="tel"
-                  placeholder="Telefon *"
-                  value={orderForm.phone}
-                  onChange={(e) => setOrderForm({...orderForm, phone: e.target.value})}
-                  required
-                  className="w-full p-2 border border-gray-300 rounded text-sm"
-                />
-                <textarea
-                  placeholder="Adres"
-                  value={orderForm.address}
-                  onChange={(e) => setOrderForm({...orderForm, address: e.target.value})}
-                  rows="2"
-                  className="w-full p-2 border border-gray-300 rounded text-sm"
-                />
-
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                >
-                  {isSubmitting ? 'Gönderiliyor...' : (
-                    <>
-                      <Send className="mr-2 h-4 w-4" />
-                      Sipariş Ver
-                    </>
-                  )}
-                </Button>
-              </form>
-
-              <p className="text-xs text-gray-500 text-center">
-                * Ödeme fiziksel olarak yapılacaktır.
-              </p>
+            <div className="text-right text-xl font-bold mt-4">
+              Toplam: ₺{totalPrice}
             </div>
-          )}
-        </div>
+
+            <h3 className="text-xl font-semibold mt-8 mb-4">Sipariş Bilgileri</h3>
+            <form onSubmit={handleSubmitOrder} className="space-y-3">
+              <input
+                type="text"
+                name="name"
+                placeholder="Ad Soyad *"
+                value={orderForm.name}
+                onChange={handleOrderFormChange}
+                required
+                className="p-2 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="email"
+                name="email"
+                placeholder="E-posta *"
+                value={orderForm.email}
+                onChange={handleOrderFormChange}
+                required
+                className="p-2 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <input
+                type="tel"
+                name="phone"
+                placeholder="Telefon *"
+                value={orderForm.phone}
+                onChange={handleOrderFormChange}
+                required
+                className="p-2 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <textarea
+                name="address"
+                placeholder="Adres"
+                rows="3"
+                value={orderForm.address}
+                onChange={handleOrderFormChange}
+                className="p-2 border border-gray-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              ></textarea>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                {isSubmitting ? 'Gönderiliyor...' : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Sipariş Ver
+                  </>
+                )}
+              </Button>
+              {orderSubmitStatus === 'success' && <p className="text-green-600 text-center mt-2">Siparişiniz başarıyla alındı!</p>}
+              {orderSubmitStatus === 'error' && <p className="text-red-600 text-center mt-2">Sipariş gönderilirken bir hata oluştu. Lütfen tekrar deneyin.</p>}
+            </form>
+            <p className="text-sm text-gray-500 text-center mt-2">* Ödeme fiziksel olarak yapılacaktır.</p>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 // Main App Component
-function App() {
-  const [cartItems, setCartItems] = useState([]);
+const App = () => {
   const [isCartOpen, setIsCartOpen] = useState(false);
-
-  const addToCart = (product) => {
-    setCartItems(prev => {
-      const existingItem = prev.find(item => item.id === product.id);
-      if (existingItem) {
-        return prev.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { ...product, quantity: 1 }];
-    });
-  };
-
-  const updateQuantity = (id, newQuantity) => {
-    if (newQuantity <= 0) {
-      setCartItems(prev => prev.filter(item => item.id !== id));
-    } else {
-      setCartItems(prev =>
-        prev.map(item =>
-          item.id === id ? { ...item, quantity: newQuantity } : item
-        )
-      );
-    }
-  };
-
-  const removeItem = (id) => {
-    setCartItems(prev => prev.filter(item => item.id !== id));
-  };
-
-  const clearCart = () => {
-    setCartItems([]);
-  };
+  const { addToCart, cartItems } = React.useContext(CartContext);
 
   return (
     <Router>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <Header cartItems={cartItems} onCartOpen={() => setIsCartOpen(true)} />
-        <main className="flex-1">
-          <Routes>
-            <Route path="/" element={<Home onAddToCart={addToCart} />} />
-            <Route path="/products" element={<Products onAddToCart={addToCart} />} />
-            <Route path="/contact" element={<Contact />} />
-          </Routes>
-        </main>
-        <Footer />
-        <Cart
-          isOpen={isCartOpen}
-          onClose={() => setIsCartOpen(false)}
-          cartItems={cartItems}
-          onUpdateQuantity={updateQuantity}
-          onRemoveItem={removeItem}
-          onClearCart={clearCart}
-        />
-      </div>
+      <Header cartItems={cartItems} onCartOpen={() => setIsCartOpen(true)} />
+      <main className="flex-grow">
+        <Routes>
+          <Route path="/" element={<Home onAddToCart={addToCart} />} />
+          <Route path="/products" element={<Products onAddToCart={addToCart} />} />
+          <Route path="/contact" element={<Contact />} />
+        </Routes>
+      </main>
+      <Footer />
+      <Cart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </Router>
   );
-}
+};
 
-export default App;
+export default () => (
+  <CartProvider>
+    <App />
+  </CartProvider>
+);
+
 
