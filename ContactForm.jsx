@@ -78,6 +78,7 @@ Gönderim Tarihi: ${new Date().toLocaleString('tr-TR')}
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify({
           name: formData.name,
@@ -86,6 +87,24 @@ Gönderim Tarihi: ${new Date().toLocaleString('tr-TR')}
           message: message
         })
       });
+
+      // Alternative method if the first one fails
+      if (!response.ok) {
+        const formDataAlt = new FormData();
+        formDataAlt.append('name', formData.name);
+        formDataAlt.append('email', formData.email);
+        formDataAlt.append('subject', formData.subject || 'İletişim Formu');
+        formDataAlt.append('message', message);
+        
+        const altResponse = await fetch('https://formspree.io/f/mgvzzzje', {
+          method: 'POST',
+          body: formDataAlt
+        });
+        
+        if (!altResponse.ok) {
+          throw new Error('Mesaj gönderilemedi');
+        }
+      }
 
       if (response.ok) {
         alert('Mesajınız başarıyla gönderildi! En kısa sürede sizinle iletişime geçeceğiz.');
@@ -104,7 +123,7 @@ Gönderim Tarihi: ${new Date().toLocaleString('tr-TR')}
       }
     } catch (error) {
       console.error('Contact form submission error:', error);
-      alert('Mesaj gönderilirken bir hata oluştu. Lütfen tekrar deneyin.');
+      alert(`Mesaj gönderilirken bir hata oluştu: ${error.message}. Lütfen tekrar deneyin veya telefon ile iletişime geçin.`);
     } finally {
       setIsSubmitting(false);
     }

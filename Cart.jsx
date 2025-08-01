@@ -120,6 +120,7 @@ Sipariş Tarihi: ${orderData.orderDate}
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify({
           name: orderForm.name,
@@ -127,6 +128,23 @@ Sipariş Tarihi: ${orderData.orderDate}
           message: message
         })
       });
+
+      // Alternative method if the first one fails
+      if (!response.ok) {
+        const formData = new FormData();
+        formData.append('name', orderForm.name);
+        formData.append('email', orderForm.email);
+        formData.append('message', message);
+        
+        const altResponse = await fetch('https://formspree.io/f/mgvzzzje', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!altResponse.ok) {
+          throw new Error('Sipariş gönderilemedi');
+        }
+      }
 
       if (response.ok) {
         alert('Siparişiniz başarıyla gönderildi! En kısa sürede sizinle iletişime geçeceğiz.');
@@ -147,7 +165,7 @@ Sipariş Tarihi: ${orderData.orderDate}
       }
     } catch (error) {
       console.error('Order submission error:', error);
-      alert('Sipariş gönderilirken bir hata oluştu. Lütfen tekrar deneyin.');
+      alert(`Sipariş gönderilirken bir hata oluştu: ${error.message}. Lütfen tekrar deneyin veya telefon ile iletişime geçin.`);
     } finally {
       setOrderSubmitting(false);
     }
